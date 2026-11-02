@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CHAOS REALM: Data Breach</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#050508;
+  overflow:hidden;
+  font-family:'Courier New',monospace;
+  color:#fff;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+canvas{display:block;cursor:pointer}
+
+#ui{
+  position:absolute;inset:0;
+  pointer-events:none;
+  z-index:10;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:14px;
+}
+.top-bar{
+  display:flex;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;
+}
+.stat{
+  background:rgba(0,0,0,.7);
+  border:1px solid rgba(0,255,0,.3);
+  padding:8px 14px;
+  border-radius:8px;
+  font-size:14px;font-weight:bold;
+  letter-spacing:1px;
+}
+.stat span{color:#0f0}
+.stat.time span{color:#ff0}
+.stat.score span{color:#0ff}
+
+/* Таймер-бар */
+.time-bar-wrap{
+  width:min(400px,70vw);
+  margin:6px auto 0;
+}
+.time-bar{
+  width:100%;height:10px;
+  background:rgba(0,0,0,.7);
+  border:1px solid #ff0;
+  border-radius:5px;
+  overflow:hidden;
+}
+.time-fill{
+  height:100%;width:100%;
+  background:linear-gradient(90deg,#f00,#ff0,#0f0);
+  transition:width .3s;
+}
+
+.bottom-hint{
+  text-align:center;
+  color:rgba(0,255,0,.4);
+  font-size:12px;
+  padding-bottom:4px;
+}
+
+/* Меню */
+.menu{
+  position:absolute;inset:0;
+  z-index:100;
+  background:rgba(0,0,0,.92);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  text-align:center;padding:20px;
+  pointer-events:auto;
+  visibility:visible;opacity:1;
+  transition:opacity .25s;
+}
+.hidden{
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+h1{
+  font-size:min(12vw,64px);
+  letter-spacing:4px;
+  color:#0f0;
+  text-shadow:0 0 20px #0f0,3px 3px 0 #050;
+  animation:glitch 2s infinite;
+  margin-bottom:10px;
+}
+@keyframes glitch{
+  0%,100%{transform:translate(0)}
+  20%{transform:translate(-2px,2px)}
+  40%{transform:translate(2px,-2px)}
+  60%{transform:translate(-2px,-2px)}
+  80%{transform:translate(2px,2px)}
+}
+p{color:#8a8;font-size:15px;line-height:1.6;margin-bottom:22px;max-width:520px}
+.btn{
+  padding:14px 42px;
+  font-size:18px;font-weight:bold;
+  font-family:'Courier New',monospace;
+  background:transparent;
+  border:2px solid #0f0;
+  color:#0f0;
+  cursor:pointer;
+  text-transform:uppercase;
+  letter-spacing:2px;
+  transition:.2s;
+  outline:none;
+}
+.btn:hover{background:#0f0;color:#000;box-shadow:0 0 30px #0f0}
+.btn.red{border-color:#f55;color:#f55}
+.btn.red:hover{background:#f55;color:#000;box-shadow:0 0 30px #f55}
+.final-score{font-size:32px;color:#0ff;margin:12px 0;text-shadow:0 0 15px #0ff}
+.stats-list{
+  list-style:none;font-size:16px;color:#8a8;
+  margin-bottom:20px;
+}
+.stats-list li{margin:5px 0}
+.stats-list span{color:#0f0;font-weight:bold}
+.hint{margin-top:15px;font-size:12px;color:#555}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+  <div>
+    <div class="top-bar">
+      <div class="stat">УРОВЕНЬ: <span id="lvlVal">1</span></div>
+      <div class="stat score">ОЧКИ: <span id="scoreVal">0</span></div>
+      <div class="stat time">⏱ <span id="timeVal">60</span>с</div>
+      <div class="stat">УЗЛЫ: <span id="pathVal">0/0</span></div>
+    </div>
+    <div class="time-bar-wrap">
+      <div class="time-bar"><div class="time-fill" id="timeFill"></div></div>
+    </div>
+  </div>
+  <div class="bottom-hint">Кликай по узлам, чтобы провести данные от ВХОДА к ВЫХОДУ. Избегай ловушек!</div>
+</div>
+
+<!-- СТАРТ -->
+<div id="startMenu" class="menu">
+  <h1>DATA<br>BREACH</h1>
+  <p>
+    Ты внутри системы. Проложи путь данных от входа к выходу.<br><br>
+    🟢 Вход → 🔴 Выход<br>
+    ⬜ Серые узлы заблокированы<br>
+    💥 Красные мигающие — ЛОВУШКИ (-время, -очки)<br>
+    💎 Золотые — бонус (+50 очков)<br><br>
+    Кликай по соседним узлам. Клик по выбранному — откат.
+  </p>
+  <button class="btn" id="btnStart">ВЗЛОМАТЬ СИСТЕМУ ▶</button>
+  <div class="hint">Каждый уровень: сетка больше, времени меньше</div>
+</div>
+
+<!-- УРОВЕНЬ ПРОЙДЕН -->
+<div id="winMenu" class="menu hidden">
+  <h1 style="color:#0ff;text-shadow:0 0 20px #0ff">ДОСТУП<br>ПОЛУЧЕН</h1>
+  <ul class="stats-list">
+    <li>Уровень: <span id="winLvl">1</span></li>
+    <li>Бонус времени: <span id="winTime">0</span></li>
+    <li>Бонусы собраны: <span id="winBonus">0</span></li>
+    <li>Итого за уровень: <span id="winTotal">0</span></li>
+    <li>Всего очков: <span id="winScore">0</span></li>
+  </ul>
+  <button class="btn" id="btnNext">СЛЕДУЮЩИЙ УЗЕЛ →</button>
+</div>
+
+<!-- ПОРАЖЕНИЕ -->
+<div id="loseMenu" class="menu hidden">
+  <h1 style="color:#f55;text-shadow:0 0 20px #f55">ОБНАРУЖЕНО<br>ВТОРЖЕНИЕ</h1>
+  <p>Система заблокировала твой доступ.</p>
+  <div class="final-score" id="loseScore">0</div>
+  <button class="btn red" id="btnRestart">ПЕРЕПОДКЛЮЧЕНИЕ ↺</button>
+</div>
+
+<script>
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+let audioCtx=null;
+function initAudio(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+}
+
+function tone(freq,type,dur,vol,delay=0){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime+delay;
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);
+  o.start(t);o.stop(t+dur+0.05);
+}
+
+function noiseBuf(dur,vol,freq){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime;
+  const bs=audioCtx.sampleRate*dur;
+  const buf=audioCtx.createBuffer(1,bs,audioCtx.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<bs;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/bs,2);
+  const src=audioCtx.createBufferSource();src.buffer=buf;
+  const f=audioCtx.createBiquadFilter();f.type='lowpass';f.frequency.value=freq;
+  const g=audioCtx.createGain();g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  src.connect(f);f.connect(g);g.connect(audioCtx.destination);
+  src.start();
+}
+
+const SFX={
+  click(){tone(700,'square',0.06,0.06)},
+  connect(){tone(900,'sine',0.08,0.07);tone(1200,'sine',0.08,0.05,0.04)},
+  undo(){tone(500,'square',0.06,0.05)},
+  error(){tone(200,'sawtooth',0.15,0.1);noiseBuf(0.1,0.06,500)},
+  trap(){tone(150,'sawtooth',0.3,0.12);noiseBuf(0.2,0.1,300)},
+  bonus(){tone(1000,'sine',0.1,0.08);tone(1500,'sine',0.12,0.06,0.06)},
+  win(){[523,659,784,1046,1318].forEach((f,i)=>tone(f,'triangle',0.25,0.09,i*0.1))},
+  lose(){[400,300,200,100].forEach((f,i)=>tone(f,'sawtooth',0.3,0.1,i*0.15))},
+  data(){tone(1200,'square',0.03,0.03)},
+  levelUp(){[440,554,659,880].forEach((f,i)=>tone(f,'sine',0.2,0.08,i*0.08))}
+};
+
+// ============================================================
+// CANVAS
+// ============================================================
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+const PI2=Math.PI*2;
+let W,H;
+
+function resize(){
+  W=window.innerWidth;
+  H=window.innerHeight;
+  canvas.width=W;
+  canvas.height=H;
+  computeLayout();
+}
+window.addEventListener('resize',resize);
+
+// ============================================================
+// DOM
+// ============================================================
+const lvlVal=document.getElementById('lvlVal');
+const scoreVal=document.getElementById('scoreVal');
+const timeVal=document.getElementById('timeVal');
+const pathVal=document.getElementById('pathVal');
+const timeFill=document.getElementById('timeFill');
+
+const startMenu=document.getElementById('startMenu');
+const winMenu=document.getElementById('winMenu');
+const loseMenu=document.getElementById('loseMenu');
+
+const btnStart=document.getElementById('btnStart');
+const btnNext=document.getElementById('btnNext');
+const btnRestart=document.getElementById('btnRestart');
+
+const winLvl=document.getElementById('winLvl');
+const winTime=document.getElementById('winTime');
+const winBonus=document.getElementById('winBonus');
+const winTotal=document.getElementById('winTotal');
+const winScore=document.getElementById('winScore');
+const loseScore=document.getElementById('loseScore');
+
+// ============================================================
+// GAME STATE
+// ============================================================
+const game={
+  playing:false,
+  rafId:null,
+  lastTime:0,
+  frame:0,
+  score:0,
+  level:1,
+  time:60,
+  maxTime:60,
+  shake:0,
+
+  // Сетка
+  cols:5,
+  rows:5,
+  cellW:0,
+  cellH:0,
+  offsetX:0,
+  offsetY:0,
+
+  grid:[],       // 2D массив узлов
+  path:[],       // Выбранный путь (массив {r,c})
+  entrance:null, // {r,c}
+  exit:null,     // {r,c}
+
+  // Анимация передачи данных
+  dataAnim:null, // {progress, speed}
+
+  particles:[],
+  floats:[]
+};
+
+// Типы узлов
+const NODE={
+  EMPTY:0,
+  BLOCKED:1,
+  TRAP:2,
+  BONUS:3,
+  ENTRANCE:4,
+  EXIT:5
+};
+
+// ============================================================
+// LAYOUT
+// ============================================================
+function computeLayout(){
+  const maxGridW=W*0.8;
+  const maxGridH=H*0.6;
+  const cell=Math.floor(Math.min(maxGridW/game.cols,maxGridH/game.rows));
+  game.cellW=cell;
+  game.cellH=cell;
+  game.offsetX=(W-cell*game.cols)/2;
+  game.offsetY=(H-cell*game.rows)/2+20;
+}
+
+function nodeCenter(r,c){
+  return{
+    x:game.offsetX+c*game.cellW+game.cellW/2,
+    y:game.offsetY+r*game.cellH+game.cellH/2
+  };
+}
+
+function pointToCell(px,py){
+  const c=Math.floor((px-game.offsetX)/game.cellW);
+  const r=Math.floor((py-game.offsetY)/game.cellH);
+  if(r<0||r>=game.rows||c<0||c>=game.cols)return null;
+  return{r,c};
+}
+
+// ============================================================
+// LEVEL GENERATION
+// ============================================================
+function generateLevel(level){
+  // Размер сетки растёт с уровнем
+  game.cols=Math.min(9,5+Math.floor((level-1)/2));
+  game.rows=Math.min(8,5+Math.floor((level-1)/3));
+  computeLayout();
+
+  const rows=game.rows,cols=game.cols;
+
+  // Создаём пустую сетку
+  game.grid=[];
+  for(let r=0;r<rows;r++){
+    game.grid[r]=[];
+    for(let c=0;c<cols;c++){
+      game.grid[r][c]=NODE.EMPTY;
+    }
+  }
+
+  // Вход слева, выход справа
+  const er=Math.floor(Math.random()*rows);
+  const xr=Math.floor(Math.random()*rows);
+  game.entrance={r:er,c:0};
+  game.exit={r:xr,c:cols-1};
+  game.grid[er][0]=NODE.ENTRANCE;
+  game.grid[xr][cols-1]=NODE.EXIT;
+
+  // Генерируем гарантированный путь от входа к выходу
+  // Используем простой случайный обход
+  const solution=[];
+  let cr=er,cc=0;
+  solution.push({r:cr,c:cc});
+  const visited=new Set();
+  visited.add(cr+','+cc);
+
+  let attempts=0;
+  while((cr!==xr||cc!==cols-1)&&attempts<500){
+    attempts++;
+    // Предпочитаем двигаться вправо, но случайно вверх/вниз
+    const dirs=[];
+    if(cc<cols-1)dirs.push({dr:0,dc:1,w:3}); // вправо приоритет
+    if(cr>0&&!visited.has((cr-1)+','+cc))dirs.push({dr:-1,dc:0,w:1});
+    if(cr<rows-1&&!visited.has((cr+1)+','+cc))dirs.push({dr:1,dc:0,w:1});
+
+    if(dirs.length===0){
+      // Застряли, перезапуск
+      cr=er;cc=0;
+      solution.length=0;
+      visited.clear();
+      solution.push({r:cr,c:cc});
+      visited.add(cr+','+cc);
+      continue;
+    }
+
+    // Взвешенный выбор
+    let total=dirs.reduce((s,d)=>s+d.w,0);
+    let rand=Math.random()*total;
+    let chosen=dirs[0];
+    for(const d of dirs){
+      rand-=d.w;
+      if(rand<=0){chosen=d;break}
+    }
+
+    cr+=chosen.dr;
+    cc+=chosen.dc;
+    const key=cr+','+cc;
+    if(visited.has(key)){
+      // Уже были, пропускаем но не зацикливаемся
+      continue;
+    }
+    visited.add(key);
+    solution.push({r:cr,c:cc});
+  }
+
+  // Сохраняем множество ячеек решения (для проверки что ловушки не на пути)
+  const solutionSet=new Set(solution.map(s=>s.r+','+s.c));
+
+  // Размещаем ловушки (на ячейках НЕ в решении)
+  const trapCount=Math.min(3+level,Math.floor(rows*cols*0.15));
+  let placed=0;
+  let guard=0;
+  while(placed<trapCount&&guard<200){
+    guard++;
+    const r=Math.floor(Math.random()*rows);
+    const c=Math.floor(Math.random()*cols);
+    const key=r+','+c;
+    if(!solutionSet.has(key)&&game.grid[r][c]===NODE.EMPTY){
+      game.grid[r][c]=NODE.TRAP;
+      placed++;
+    }
+  }
+
+  // Размещаем бонусы (тоже не на пути решения, чтобы игрок сам решал рисковать)
+  const bonusCount=Math.min(2+Math.floor(level/2),Math.floor(rows*cols*0.1));
+  placed=0;guard=0;
+  while(placed<bonusCount&&guard<200){
+    guard++;
+    const r=Math.floor(Math.random()*rows);
+    const c=Math.floor(Math.random()*cols);
+    const key=r+','+c;
+    if(!solutionSet.has(key)&&game.grid[r][c]===NODE.EMPTY){
+      game.grid[r][c]=NODE.BONUS;
+      placed++;
+    }
+  }
+
+  // Блокированные узлы
+  const blockedCount=Math.min(2+level,Math.floor(rows*cols*0.12));
+  placed=0;guard=0;
+  while(placed<blockedCount&&guard<200){
+    guard++;
+    const r=Math.floor(Math.random()*rows);
+    const c=Math.floor(Math.random()*cols);
+    const key=r+','+c;
+    if(!solutionSet.has(key)&&game.grid[r][c]===NODE.EMPTY){
+      game.grid[r][c]=NODE.BLOCKED;
+      placed++;
+    }
+  }
+
+  // Таймер
+  game.maxTime=Math.max(25,70-level*4);
+  game.time=game.maxTime;
+
+  // Пустой путь
+  game.path=[];
+  game.dataAnim=null;
+
+  updateHUD();
+}
+
+// ============================================================
+// PATH LOGIC
+// ============================================================
+function isAdjacent(a,b){
+  return Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1;
+}
+
+function isInPath(r,c){
+  return game.path.some(p=>p.r===r&&p.c===c);
+}
+
+function handleNodeClick(r,c){
+  if(!game.playing||game.dataAnim)return;
+
+  const type=game.grid[r][c];
+
+  // Клик по заблокированному
+  if(type===NODE.BLOCKED){
+    SFX.error();
+    game.shake=5;
+    addFloat(nodeCenter(r,c),'ЗАБЛОКИРОВАНО','#f55',14);
+    return;
+  }
+
+  // Клик по ловушке
+  if(type===NODE.TRAP){
+    SFX.trap();
+    game.shake=10;
+    game.time=Math.max(0,game.time-5);
+    game.score=Math.max(0,game.score-20);
+    const p=nodeCenter(r,c);
+    addFloat(p,'ЛОВУШКА! -5с','#f55',18);
+    addBurst(p.x,p.y,'#f55',12);
+    updateHUD();
+    if(game.time<=0)endGame(false);
+    return;
+  }
+
+  // Клик по входу: начать путь заново
+  if(type===NODE.ENTRANCE){
+    game.path=[{r,c}];
+    SFX.click();
+    updateHUD();
+    return;
+  }
+
+  // Если путь пуст, нужно начать с входа
+  if(game.path.length===0){
+    SFX.error();
+    const p=nodeCenter(r,c);
+    addFloat(p,'Начни с ВХОДА','#ff0',14);
+    return;
+  }
+
+  // Клик по последнему узлу пути = откат
+  const last=game.path[game.path.length-1];
+  if(last.r===r&&last.c===c){
+    if(game.path.length>1){
+      game.path.pop();
+      SFX.undo();
+      updateHUD();
+    }
+    return;
+  }
+
+  // Клик по уже выбранному узлу (не последнему) = откат до него
+  const idx=game.path.findIndex(p=>p.r===r&&p.c===c);
+  if(idx>=0){
+    game.path=game.path.slice(0,idx+1);
+    SFX.undo();
+    updateHUD();
+    return;
+  }
+
+  // Проверка смежности
+  if(!isAdjacent(last,{r,c})){
+    SFX.error();
+    const p=nodeCenter(r,c);
+    addFloat(p,'Слишком далеко','#f55',13);
+    return;
+  }
+
+  // Добавляем в путь
+  game.path.push({r,c});
+  SFX.connect();
+
+  // Бонус
+  if(type===NODE.BONUS){
+    game.score+=50;
+    const p=nodeCenter(r,c);
+    addFloat(p,'+50 💎','#ffd700',16);
+    addBurst(p.x,p.y,'#ffd700',8);
+    SFX.bonus();
+    game.grid[r][c]=NODE.EMPTY; // Бонус собран
+  }
+
+  // Проверка: дошли до выхода?
+  if(type===NODE.EXIT){
+    startDataAnimation();
+  }
+
+  updateHUD();
+}
+
+// ============================================================
+// DATA ANIMATION (передача данных по пути)
+// ============================================================
+function startDataAnimation(){
+  game.dataAnim={progress:0,speed:0.02+game.level*0.002};
+  SFX.data();
+}
+
+function updateDataAnimation(dt){
+  if(!game.dataAnim)return;
+  game.dataAnim.progress+=game.dataAnim.speed*dt*60;
+
+  // Звук при движении
+  if(game.frame%4===0)SFX.data();
+
+  if(game.dataAnim.progress>=1){
+    // Уровень пройден!
+    game.dataAnim=null;
+    levelComplete();
+  }
+}
+
+function getDataAnimPosition(){
+  if(!game.dataAnim||game.path.length<2)return null;
+  const totalSegs=game.path.length-1;
+  const p=game.dataAnim.progress*totalSegs;
+  const seg=Math.min(Math.floor(p),totalSegs-1);
+  const t=p-seg;
+  const a=nodeCenter(game.path[seg].r,game.path[seg].c);
+  const b=nodeCenter(game.path[seg+1].r,game.path[seg+1].c);
+  return{
+    x:a.x+(b.x-a.x)*t,
+    y:a.y+(b.y-a.y)*t
+  };
+}
+
+// ============================================================
+// LEVEL COMPLETE
+// ============================================================
+function levelComplete(){
+  game.playing=false;
+  SFX.win();
+
+  const timeBonus=Math.floor(game.time)*10;
+  const baseScore=100*game.level;
+  game.score+=baseScore+timeBonus;
+
+  winLvl.textContent=game.level;
+  winTime.textContent='+'+timeBonus;
+  winBonus.textContent='+'+baseScore;
+  winTotal.textContent=baseScore+timeBonus;
+  winScore.textContent=game.score;
+
+  updateHUD();
+
+  setTimeout(()=>{
+    winMenu.classList.remove('hidden');
+  },500);
+}
+
+function nextLevel(){
+  btnNext.blur();
+  initAudio();
+  winMenu.classList.add('hidden');
+  game.level++;
+  game.playing=true;
+  generateLevel(game.level);
+  if(game.rafId)cancelAnimationFrame(game.rafId);
+  game.lastTime=performance.now();
+  game.rafId=requestAnimationFrame(loop);
+}
+
+// ============================================================
+// GAME OVER
+// ============================================================
+function endGame(won){
+  game.playing=false;
+  if(!won){
+    SFX.lose();
+    game.shake=15;
+    loseScore.textContent=game.score;
+    setTimeout(()=>{
+      loseMenu.classList.remove('hidden');
+    },600);
+  }
+}
+
+// ============================================================
+// EFFECTS
+// ============================================================
+function addBurst(x,y,color,count){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*PI2;
+    const s=2+Math.random()*4;
+    game.particles.push({
+      x,y,
+      vx:Math.cos(a)*s,
+      vy:Math.sin(a)*s,
+      life:1,
+      size:2+Math.random()*3,
+      color
+    });
+  }
+}
+
+function addFloat(pos,text,color,size){
+  game.floats.push({
+    x:pos.x,y:pos.y-20,
+    text,color,size,
+    life:1,vy:-40
+  });
+}
+
+function updateEffects(dt){
+  for(let i=game.particles.length-1;i>=0;i--){
+    const p=game.particles[i];
+    p.x+=p.vx*dt*60;
+    p.y+=p.vy*dt*60;
+    p.vy+=0.1*dt*60;
+    p.life-=dt*1.5;
+    if(p.life<=0)game.particles.splice(i,1);
+  }
+  for(let i=game.floats.length-1;i>=0;i--){
+    const f=game.floats[i];
+    f.y+=f.vy*dt;
+    f.life-=dt*0.8;
+    if(f.life<=0)game.floats.splice(i,1);
+  }
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function update(dt){
+  if(!game.playing)return;
+  game.frame++;
+
+  // Таймер
+  if(!game.dataAnim){
+    game.time-=dt;
+    if(game.time<=0){
+      game.time=0;
+      updateHUD();
+      endGame(false);
+      return;
+    }
+  }
+
+  updateDataAnimation(dt);
+  updateEffects(dt);
+
+  // Тряска
+  if(game.shake>0){
+    game.shake*=0.9;
+    if(game.shake<0.5)game.shake=0;
+  }
+
+  // HUD обновляем периодически
+  if(game.frame%10===0)updateHUD();
+}
+
+// ============================================================
+// DRAW
+// ============================================================
+function draw(){
+  // Фон
+  ctx.fillStyle='#050508';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+
+  // Тряска
+  if(game.shake>0){
+    ctx.translate(
+      (Math.random()-0.5)*game.shake,
+      (Math.random()-0.5)*game.shake
+    );
+  }
+
+  // Фоновая сетка (декор)
+  ctx.strokeStyle='rgba(0,255,0,.03)';
+  ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+  }
+  for(let y=0;y<H;y+=40){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+
+  const nodeR=Math.min(game.cellW,game.cellH)*0.3;
+
+  // Рисуем связи пути (линии)
+  if(game.path.length>1){
+    ctx.strokeStyle='#0f0';
+    ctx.lineWidth=4;
+    ctx.shadowBlur=10;
+    ctx.shadowColor='#0f0';
+    ctx.beginPath();
+    const first=nodeCenter(game.path[0].r,game.path[0].c);
+    ctx.moveTo(first.x,first.y);
+    for(let i=1;i<game.path.length;i++){
+      const p=nodeCenter(game.path[i].r,game.path[i].c);
+      ctx.lineTo(p.x,p.y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+
+  // Рисуем узлы
+  for(let r=0;r<game.rows;r++){
+    for(let c=0;c<game.cols;c++){
+      const type=game.grid[r][c];
+      const pos=nodeCenter(r,c);
+      const inPath=isInPath(r,c);
+
+      // Фон ячейки
+      ctx.fillStyle='rgba(0,255,0,.03)';
+      ctx.fillRect(
+        game.offsetX+c*game.cellW+2,
+        game.offsetY+r*game.cellH+2,
+        game.cellW-4,game.cellH-4
+      );
+
+      // Узел
+      if(type===NODE.BLOCKED){
+        // Серый квадрат
+        ctx.fillStyle='#333';
+        ctx.fillRect(pos.x-nodeR,pos.y-nodeR,nodeR*2,nodeR*2);
+        ctx.strokeStyle='#555';
+        ctx.lineWidth=2;
+        ctx.strokeRect(pos.x-nodeR,pos.y-nodeR,nodeR*2,nodeR*2);
+        // Крест
+        ctx.strokeStyle='#666';
+        ctx.beginPath();
+        ctx.moveTo(pos.x-nodeR*0.5,pos.y-nodeR*0.5);
+        ctx.lineTo(pos.x+nodeR*0.5,pos.y+nodeR*0.5);
+        ctx.moveTo(pos.x+nodeR*0.5,pos.y-nodeR*0.5);
+        ctx.lineTo(pos.x-nodeR*0.5,pos.y+nodeR*0.5);
+        ctx.stroke();
+      }
+      else if(type===NODE.TRAP){
+        // Мигающий красный
+        const blink=Math.sin(performance.now()*0.005)>0;
+        ctx.fillStyle=blink?'#f55':'#a00';
+        ctx.shadowBlur=blink?15:5;
+        ctx.shadowColor='#f55';
+        ctx.beginPath();
+        ctx.arc(pos.x,pos.y,nodeR,0,PI2);
+        ctx.fill();
+        ctx.shadowBlur=0;
+        // Символ опасности
+        ctx.fillStyle='#fff';
+        ctx.font='bold '+Math.floor(nodeR)+'px Courier New';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText('!',pos.x,pos.y+1);
+      }
+      else if(type===NODE.BONUS){
+        // Золотой ромб
+        ctx.save();
+        ctx.translate(pos.x,pos.y);
+        ctx.rotate(performance.now()*0.002);
+        ctx.fillStyle='#ffd700';
+        ctx.shadowBlur=12;
+        ctx.shadowColor='#ffd700';
+        ctx.beginPath();
+        ctx.moveTo(0,-nodeR);
+        ctx.lineTo(nodeR,0);
+        ctx.lineTo(0,nodeR);
+        ctx.lineTo(-nodeR,0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowBlur=0;
+      }
+      else if(type===NODE.ENTRANCE){
+        // Зелёный вход
+        ctx.fillStyle='#0f0';
+        ctx.shadowBlur=15;
+        ctx.shadowColor='#0f0';
+        ctx.beginPath();
+        ctx.arc(pos.x,pos.y,nodeR,0,PI2);
+        ctx.fill();
+        ctx.shadowBlur=0;
+        ctx.fillStyle='#000';
+        ctx.font='bold '+Math.floor(nodeR*0.9)+'px Courier New';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText('IN',pos.x,pos.y+1);
+      }
+      else if(type===NODE.EXIT){
+        // Красный выход
+        ctx.fillStyle='#f00';
+        ctx.shadowBlur=15;
+        ctx.shadowColor='#f00';
+        ctx.beginPath();
+        ctx.arc(pos.x,pos.y,nodeR,0,PI2);
+        ctx.fill();
+        ctx.shadowBlur=0;
+        ctx.fillStyle='#fff';
+        ctx.font='bold '+Math.floor(nodeR*0.9)+'px Courier New';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText('OUT',pos.x,pos.y+1);
+      }
+      else{
+        // Обычный узел
+        ctx.fillStyle=inPath?'#0f0':'#1a3a1a';
+        ctx.strokeStyle=inPath?'#0f0':'#0a2';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.arc(pos.x,pos.y,nodeR*0.7,0,PI2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Подсветка выбранного
+      if(inPath&&type!==NODE.ENTRANCE&&type!==NODE.EXIT){
+        ctx.strokeStyle='#0f0';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.arc(pos.x,pos.y,nodeR,0,PI2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Анимация передачи данных
+  const dataPos=getDataAnimPosition();
+  if(dataPos){
+    ctx.save();
+    ctx.fillStyle='#fff';
+    ctx.shadowBlur=20;
+    ctx.shadowColor='#0ff';
+    ctx.beginPath();
+    ctx.arc(dataPos.x,dataPos.y,8,0,PI2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Частицы
+  for(const p of game.particles){
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x,p.y,p.size,p.size);
+  }
+  ctx.globalAlpha=1;
+
+  // Всплывающий текст
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  for(const f of game.floats){
+    ctx.globalAlpha=Math.max(0,f.life);
+    ctx.fillStyle=f.color;
+    ctx.font='bold '+f.size+'px Courier New';
+    ctx.shadowBlur=5;
+    ctx.shadowColor='#000';
+    ctx.fillText(f.text,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
+
+  ctx.restore();
+
+  // === ПОСТ-ЭФФЕКТЫ ===
+
+  // Сканлайны
+  ctx.fillStyle='rgba(0,0,0,.06)';
+  for(let y=0;y<H;y+=3){
+    ctx.fillRect(0,y,W,1);
+  }
+
+  // Глитч-блоки
+  if(Math.random()<0.015){
+    const gh=Math.random()*20+5;
+    const gy=Math.random()*H;
+    ctx.fillStyle=`rgba(${Math.random()*255|0},${Math.random()*255|0},${Math.random()*255|0},.25)`;
+    ctx.fillRect(Math.random()*W,gy,Math.random()*150,gh);
+  }
+
+  // Виньетка
+  const vig=ctx.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,'rgba(0,0,0,.35)');
+  ctx.fillStyle=vig;
+  ctx.fillRect(0,0,W,H);
+}
+
+// ============================================================
+// HUD
+// ============================================================
+function updateHUD(){
+  lvlVal.textContent=game.level;
+  scoreVal.textContent=game.score;
+  timeVal.textContent=Math.ceil(game.time);
+  timeFill.style.width=(game.time/game.maxTime*100)+'%';
+
+  // Цвет таймера при опасности
+  if(game.time<10){
+    timeFill.style.background='#f00';
+  }else{
+    timeFill.style.background='linear-gradient(90deg,#f00,#ff0,#0f0)';
+  }
+
+  // Узлы пути
+  pathVal.textContent=game.path.length+'/'+((game.rows*game.cols));
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+function handleClick(px,py){
+  if(!game.playing||game.dataAnim)return;
+  const cell=pointToCell(px,py);
+  if(!cell)return;
+  handleNodeClick(cell.r,cell.c);
+}
+
+canvas.addEventListener('mousedown',e=>handleClick(e.clientX,e.clientY));
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  handleClick(t.clientX,t.clientY);
+},{passive:false});
+
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space')e.preventDefault();
+});
+
+// ============================================================
+// GAME FLOW
+// ============================================================
+function startGame(){
+  initAudio();
+  btnStart.blur();
+  btnRestart.blur();
+  btnNext.blur();
+
+  startMenu.classList.add('hidden');
+  winMenu.classList.add('hidden');
+  loseMenu.classList.add('hidden');
+
+  game.playing=true;
+  game.score=0;
+  game.level=1;
+  game.frame=0;
+  game.shake=0;
+  game.particles=[];
+  game.floats=[];
+
+  resize();
+  generateLevel(1);
+  updateHUD();
+
+  if(game.rafId)cancelAnimationFrame(game.rafId);
+  game.lastTime=performance.now();
+  game.rafId=requestAnimationFrame(loop);
+}
+
+function loop(now){
+  if(!game.playing){
+    draw();
+    if(game.shake>0){
+      game.shake*=0.9;
+      game.rafId=requestAnimationFrame(loop);
+    }
+    return;
+  }
+
+  let dt=(now-game.lastTime)/1000;
+  if(!isFinite(dt)||dt<0)dt=0;
+  if(dt>0.05)dt=0.05;
+  game.lastTime=now;
+
+  update(dt);
+  draw();
+
+  game.rafId=requestAnimationFrame(loop);
+}
+
+btnStart.addEventListener('click',startGame);
+btnNext.addEventListener('click',nextLevel);
+btnRestart.addEventListener('click',startGame);
+
+// ============================================================
+// INIT
+// ============================================================
+resize();
+ctx.fillStyle='#050508';
+ctx.fillRect(0,0,W,H);
+</script>
+
+</body>
+</html>
